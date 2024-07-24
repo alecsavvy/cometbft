@@ -142,7 +142,10 @@ func TestMain(m *testing.M) {
 
 func TestIndexing(t *testing.T) {
 	t.Run("IndexBlockEvents", func(t *testing.T) {
-		indexer := &EventSink{store: testDB(), chainID: chainID}
+		indexer := &EventSink{store: testDB(), chainID: chainID, tableBlocks: tableBlocks,
+			tableTxResults:  tableTxResults,
+			tableEvents:     tableEvents,
+			tableAttributes: tableAttributes}
 		require.NoError(t, indexer.IndexBlockEvents(newTestBlockEvents()))
 
 		verifyBlock(t, 1)
@@ -202,7 +205,10 @@ func TestIndexing(t *testing.T) {
 	})
 
 	t.Run("IndexerService", func(t *testing.T) {
-		indexer := &EventSink{store: testDB(), chainID: chainID}
+		indexer := &EventSink{store: testDB(), chainID: chainID, tableBlocks: tableBlocks,
+			tableTxResults:  tableTxResults,
+			tableEvents:     tableEvents,
+			tableAttributes: tableAttributes}
 
 		// event bus
 		eventBus := types.NewEventBus()
@@ -253,7 +259,10 @@ func TestIndexing(t *testing.T) {
 }
 
 func TestStop(t *testing.T) {
-	indexer := &EventSink{store: testDB()}
+	indexer := &EventSink{store: testDB(), tableBlocks: tableBlocks,
+		tableTxResults:  tableTxResults,
+		tableEvents:     tableEvents,
+		tableAttributes: tableAttributes}
 	require.NoError(t, indexer.Stop())
 }
 

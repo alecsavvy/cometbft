@@ -31,22 +31,63 @@ const (
 // implementation stores records in a PostgreSQL database using the schema
 // defined in state/indexer/sink/psql/schema.sql.
 type EventSink struct {
-	store   *sql.DB
-	chainID string
+	store           *sql.DB
+	chainID         string
+	tableBlocks     string
+	tableTxResults  string
+	tableEvents     string
+	tableAttributes string
 }
 
 // NewEventSink constructs an event sink associated with the PostgreSQL
 // database specified by connStr. Events written to the sink are attributed to
 // the specified chainID.
-func NewEventSink(connStr, chainID string) (*EventSink, error) {
+func NewEventSink(connStr, chainID string, opts ...EventSinkOption) (*EventSink, error) {
 	db, err := sql.Open(driverName, connStr)
 	if err != nil {
 		return nil, err
 	}
-	return &EventSink{
-		store:   db,
-		chainID: chainID,
-	}, nil
+
+	es := &EventSink{
+		store:           db,
+		chainID:         chainID,
+		tableBlocks:     tableBlocks,
+		tableTxResults:  tableTxResults,
+		tableEvents:     tableEvents,
+		tableAttributes: tableAttributes,
+	}
+
+	for _, opt := range opts {
+		opt(es)
+	}
+
+	return es, nil
+}
+
+type EventSinkOption func(*EventSink)
+
+func WithTableBlocks(tableBlocks string) EventSinkOption {
+	return func(es *EventSink) {
+		es.tableBlocks = tableBlocks
+	}
+}
+
+func WithTableTxResults(tableTxResults string) EventSinkOption {
+	return func(es *EventSink) {
+		es.tableTxResults = tableTxResults
+	}
+}
+
+func WithTableEvents(tableEvents string) EventSinkOption {
+	return func(es *EventSink) {
+		es.tableEvents = tableEvents
+	}
+}
+
+func WithTableAttributes(tableAttributes string) EventSinkOption {
+	return func(es *EventSink) {
+		es.tableAttributes = tableAttributes
+	}
 }
 
 // DB returns the underlying Postgres connection used by the sink.

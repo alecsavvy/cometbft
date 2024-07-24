@@ -1380,6 +1380,11 @@ type TxIndexConfig struct {
 	// The PostgreSQL connection configuration, the connection format:
 	// postgresql://<user>:<password>@<host>:<port>/<db>?<opts>
 	PsqlConn string `mapstructure:"psql-conn"`
+
+	TableBlocks     string `mapstructure:"table_blocks"`
+	TableTxResults  string `mapstructure:"table_tx_results"`
+	TableEvents     string `mapstructure:"table_events"`
+	TableAttributes string `mapstructure:"table_attributes"`
 }
 
 // DefaultTxIndexConfig returns a default configuration for the transaction indexer.
