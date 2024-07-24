@@ -187,7 +187,7 @@ func (es *EventSink) IndexBlockEvents(h types.EventDataNewBlockEvents) error {
 	var blockID int64
 	//nolint:execinquery
 	err := es.store.QueryRow(`
-INSERT INTO `+tableBlocks+` (height, chain_id, created_at)
+INSERT INTO `+es.tableBlocks+` (height, chain_id, created_at)
   VALUES ($1, $2, $3)
   ON CONFLICT DO NOTHING
   RETURNING rowid;
@@ -202,10 +202,10 @@ INSERT INTO `+tableBlocks+` (height, chain_id, created_at)
 	events := append([]abci.Event{makeIndexedEvent(types.BlockHeightKey, strconv.FormatInt(h.Height, 10))}, h.Events...)
 	// Insert all the block events. Order is important here,
 	eventInserts, attrInserts := bulkInsertEvents(blockID, 0, events)
-	if err := runBulkInsert(es.store, tableEvents, eventInsertColumns, eventInserts); err != nil {
+	if err := runBulkInsert(es.store, es.tableEvents, eventInsertColumns, eventInserts); err != nil {
 		return fmt.Errorf("failed bulk insert of events: %w", err)
 	}
-	if err := runBulkInsert(es.store, tableAttributes, attrInsertColumns, attrInserts); err != nil {
+	if err := runBulkInsert(es.store, es.tableAttributes, attrInsertColumns, attrInserts); err != nil {
 		return fmt.Errorf("failed bulk insert of attributes: %w", err)
 	}
 	return nil
@@ -216,7 +216,7 @@ func (es *EventSink) getBlockIDs(heights []int64) ([]int64, error) {
 	var blockIDs pq.Int64Array
 	if err := es.store.QueryRow(`
 SELECT array_agg((
-	SELECT rowid FROM `+tableBlocks+` WHERE height = txr.height AND chain_id = $1
+	SELECT rowid FROM `+es.tableBlocks+` WHERE height = txr.height AND chain_id = $1
 )) FROM unnest($2::bigint[]) AS txr(height);`,
 		es.chainID, pq.Array(heights)).Scan(&blockIDs); err != nil {
 		return nil, fmt.Errorf("getting block ids for txs from sql: %w", err)
@@ -224,11 +224,11 @@ SELECT array_agg((
 	return blockIDs, nil
 }
 
-func prefetchTxrExistence(db *sql.DB, blockIDs []int64, indexes []uint32) ([]bool, error) {
+func prefetchTxrExistence(db *sql.DB, blockIDs []int64, indexes []uint32, txResultsTable string) ([]bool, error) {
 	var existence []bool
 	if err := db.QueryRow(`
 SELECT array_agg((
-	SELECT EXISTS(SELECT 1 FROM `+tableTxResults+` WHERE block_id = txr.block_id AND index = txr.index)
+	SELECT EXISTS(SELECT 1 FROM `+txResultsTable+` WHERE block_id = txr.block_id AND index = txr.index)
 )) FROM UNNEST($1::bigint[], $2::integer[]) as txr(block_id, index);`,
 		pq.Array(blockIDs), pq.Array(indexes)).Scan((*pq.BoolArray)(&existence)); err != nil {
 		return nil, fmt.Errorf("fetching already indexed txrs: %w", err)
@@ -250,7 +250,7 @@ func (es *EventSink) IndexTxEvents(txrs []*abci.TxResult) error {
 	if err != nil {
 		return fmt.Errorf("getting block ids for txs: %w", err)
 	}
-	alreadyIndexed, err := prefetchTxrExistence(es.store, blockIDs, indexes)
+	alreadyIndexed, err := prefetchTxrExistence(es.store, blockIDs, indexes, es.tableTxResults)
 	if err != nil {
 		return fmt.Errorf("failed to prefetch which txrs were already indexed: %w", err)
 	}
@@ -280,13 +280,13 @@ func (es *EventSink) IndexTxEvents(txrs []*abci.TxResult) error {
 		eventInserts = append(eventInserts, newEventInserts...)
 		attrInserts = append(attrInserts, newAttrInserts...)
 	}
-	if err := runBulkInsert(es.store, tableTxResults, txrInsertColumns, txrInserts); err != nil {
+	if err := runBulkInsert(es.store, es.tableTxResults, txrInsertColumns, txrInserts); err != nil {
 		return fmt.Errorf("bulk inserting txrs: %w", err)
 	}
-	if err := runBulkInsert(es.store, tableEvents, eventInsertColumns, eventInserts); err != nil {
+	if err := runBulkInsert(es.store, es.tableEvents, eventInsertColumns, eventInserts); err != nil {
 		return fmt.Errorf("bulk inserting events: %w", err)
 	}
-	if err := runBulkInsert(es.store, tableAttributes, attrInsertColumns, attrInserts); err != nil {
+	if err := runBulkInsert(es.store, es.tableAttributes, attrInsertColumns, attrInserts); err != nil {
 		return fmt.Errorf("bulk inserting attributes: %w", err)
 	}
 	return nil
